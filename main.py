@@ -1,12 +1,4 @@
-# main.py (v13.0 - "Dois Cérebros")
-#
-# ATUALIZAÇÃO ESTRUTURAL:
-# - Carrega OS DOIS "cérebros" (.pkl) na inicialização.
-#
-# ATUALIZAÇÃO ENDPOINTS:
-# - /encontrar-por-trecho (v9): Usa o cérebro de FRASES (embeddings.pkl)
-# - /recomendar-por-tema (v10): Usa o cérebro de CONTEXTO (embeddings_CONTEXTO.pkl)
-#   e a lógica de AGREGAÇÃO (v10), que é a correta para chunks.
+# -*- coding: utf-8 -*-
 
 import sqlite3
 import joblib
@@ -22,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+from rank_bm25 import BM25Okapi
 
 # --- Modelos Pydantic (Estrutura de Dados) ---
 class ObraBase(BaseModel):
@@ -32,66 +25,76 @@ class ObraBase(BaseModel):
     movimento_literario: str | None
     url_download: str | None
 
-class ResultadoComPontuacao(BaseModel):
-    pontuacao: float 
+class ResultadoTrecho(BaseModel):
+    pontuacao: float
+    texto_encontrado: str 
     obra: ObraBase
 
-class TextoParaAnalisar(BaseModel):
-    texto: str = Field(min_length=15)
+class ObraTema(BaseModel):
+    id: int
+    titulo: str
+    autor: str
 
-# --- Carregamento dos Modelos e Definições Globais ---
+class ResultadoTema(BaseModel):
+    score_fusao_multiplicativa: float
+    score_vetor_normalizado: float
+    score_bm25_normalizado: float
+    obra: ObraTema
+    texto_chunk_encontrado: str
+
+class TextoParaAnalisar(BaseModel):
+    texto: str = Field(min_length=5) 
+
 DB_PATH = 'literatura.db'
 RE_CONTROLE_INVISIVEL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
-# --- INÍCIO DA MUDANÇA (v13.0): Carregando os 2 Cérebros ---
-
-# Modelos de IA (Carregados uma vez)
 print("Carregando modelo SentenceTransformer (MiniLM)...")
 model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 print("Carregando modelo spaCy (pt_core_news_lg)...")
 nlp_main = spacy.load('pt_core_news_lg', disable=['parser', 'ner', 'tagger'])
 nlp_main.add_pipe('sentencizer')
 
-# Cérebro 1: TRECHO (Frases únicas)
-print("Carregando 'Cérebro de Trecho' (embeddings.pkl)...")
+print("Carregando 'Cérebro de Trecho' (index_TRECHO.pkl)...")
 try:
-    embeddings_matrix_TRECHO = joblib.load('embeddings.pkl')
-    ids_documentos_TRECHO = joblib.load('ids_documentos.pkl')
-    print("Cérebro de Trecho carregado com sucesso.")
+    embeddings_matrix_TRECHO = joblib.load('embeddings_TRECHO.pkl')
+    index_TRECHO = joblib.load('index_TRECHO.pkl')
+    print(f"Cérebro de Trecho carregado. ({len(index_TRECHO)} frases)")
 except FileNotFoundError:
-    print("ERRO FATAL: Cérebro de Trecho (embeddings.pkl) não encontrado.")
-    print("Execute 'processar_textos.py' primeiro.")
-    embeddings_matrix_TRECHO = ids_documentos_TRECHO = None
+    print("ERRO FATAL: Cérebro de Trecho (index_TRECHO.pkl) não encontrado.")
+    print("           Execute 'processar_textos.py' primeiro.")
+    embeddings_matrix_TRECHO = index_TRECHO = None
 except Exception as e:
-    print(f"ERRO CRÍTICO AO CARREGAR 'embeddings.pkl': {e}")
-    embeddings_matrix_TRECHO = ids_documentos_TRECHO = None
+    print(f"ERRO CRÍTICO AO CARREGAR 'index_TRECHO.pkl': {e}")
+    embeddings_matrix_TRECHO = index_TRECHO = None
 
-# Cérebro 2: TEMA (Chunks de Contexto)
-print("Carregando 'Cérebro de Tema' (embeddings_CONTEXTO.pkl)...")
+print("Carregando 'Cérebro de Tema' (index_TEMA.pkl)...")
 try:
-    embeddings_matrix_TEMA = joblib.load('embeddings_CONTEXTO.pkl')
-    ids_documentos_TEMA = joblib.load('ids_documentos_CONTEXTO.pkl')
-    print("Cérebro de Tema carregado com sucesso.")
+    embeddings_matrix_TEMA = joblib.load('embeddings_TEMA.pkl')
+    index_TEMA = joblib.load('index_TEMA.pkl')
+    print(f"Cérebro de Tema carregado. ({len(index_TEMA)} chunks)")
 except FileNotFoundError:
-    print("ERRO FATAL: Cérebro de Tema (embeddings_CONTEXTO.pkl) não encontrado.")
-    print("Execute 'processar_contexto.py' primeiro.")
-    embeddings_matrix_TEMA = ids_documentos_TEMA = None
+    print("ERRO FATAL: Cérebro de Tema (index_TEMA.pkl) não encontrado.")
+    print("           Execute 'processar_temas.py' primeiro.")
+    embeddings_matrix_TEMA = index_TEMA = None
 except Exception as e:
-    print(f"ERRO CRÍTICO AO CARREGAR 'embeddings_CONTEXTO.pkl': {e}")
-    embeddings_matrix_TEMA = ids_documentos_TEMA = None
+    print(f"ERRO CRÍTICO AO CARREGAR 'index_TEMA.pkl': {e}")
+    embeddings_matrix_TEMA = index_TEMA = None
 
-# --- FIM DA MUDANÇA (v13.0) ---
+bm25_TEMA = None
+if index_TEMA:
+    print("Construindo índice BM25 (Keywords) para Temas...")
+    corpus_textos_tema = [item['texto'] for item in index_TEMA]
+    tokenized_corpus_tema = [doc.lower().split(" ") for doc in corpus_textos_tema]
+    bm25_TEMA = BM25Okapi(tokenized_corpus_tema)
+    print("Índice BM25 construído com sucesso.")
 
 
-# --- Inicia a aplicação FastAPI ---
 app = FastAPI(
-    title="Scriptura API (v13.0 - Dois Cérebros)",
-    description="API com busca de Trecho (Cérebro 1) e Tema (Cérebro 2).",
-    version="13.0.0",
+    title="Scriptura",
+    version="1.0.0",
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Funções helper (sem alteração) ---
 def formatar_livro_saida(row):
     if not row: return None
     livro = dict(row)
@@ -111,12 +114,10 @@ def limpar_texto_busca(texto_sujo: str):
         raise HTTPException(status_code=422, detail="Nenhuma frase válida encontrada na busca.")
     return frases_busca
 
-# --- Endpoints da API ---
 @app.get("/")
 def read_root():
-    return {"message": "Bem-vindo à API Scriptura (v13.0 - Dois Cérebros)!"}
+    return {"message": "Bem-vindo à API Scriptura!"}
 
-# --- O "RECEPCIONISTA" (v9.0 - Sem alterações) ---
 @app.post("/upload-livro")
 async def upload_livro(
     titulo: str = Form(...),
@@ -126,15 +127,16 @@ async def upload_livro(
     movimento_literario: Optional[str] = Form(None),
     file: UploadFile = File(...)
 ):
-    # ... (O código deste endpoint não mudou) ...
-    # ... (Aviso: este upload só atualiza o cérebro de TRECHO, não o de TEMA) ...
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="O arquivo enviado não é um .pdf.")
+    
     nome_arquivo_seguro = re.sub(r"[^a-zA-Z0-9_\-.]", "_", titulo.lower().replace(" ", "_"))
     nome_pdf = f"{nome_arquivo_seguro}.pdf"
     nome_txt = f"{nome_arquivo_seguro}.txt"
+    
     caminho_pdf_salvar = os.path.join("static", "pdfs", nome_pdf)
     caminho_txt_gerar = os.path.join("corpus", nome_txt)
+
     try:
         with open(caminho_pdf_salvar, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -142,6 +144,7 @@ async def upload_livro(
         raise HTTPException(status_code=500, detail=f"Erro ao salvar o PDF: {e}")
     finally:
         file.file.close()
+
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -150,7 +153,7 @@ async def upload_livro(
             INSERT INTO livros (
                 titulo, autor, ano_lancamento, genero, movimento_literario, 
                 caminho_arquivo, caminho_pdf, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDENTE')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'EM_REVISAO')
             """,
             (titulo, autor, ano_lancamento, genero, movimento_literario, 
              caminho_txt_gerar, caminho_pdf_salvar)
@@ -162,140 +165,112 @@ async def upload_livro(
         raise HTTPException(status_code=400, detail=f"Um livro com este título/caminho já existe.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar no banco de dados: {e}")
+
     return {
-        "mensagem": "Livro recebido com sucesso! Ele está na fila para processamento (no cérebro de trechos).",
+        "mensagem": "Livro recebido! Ele está na fila para revisão do Administrador.",
         "livro_id": novo_id,
         "titulo": titulo,
-        "status": "PENDENTE"
+        "status": "EM_REVISAO"
     }
 
 
-# --- ENDPOINT 1: BUSCA POR TEMA (Lógica v10 - AGREGAÇÃO) ---
-# --- USA O CÉREBRO DE TEMA (CONTEXTO) ---
-@app.post("/recomendar-por-tema", response_model=List[ResultadoComPontuacao])
+@app.post("/recomendar-por-tema", response_model=List[ResultadoTema])
 async def recomendar_por_tema(item: TextoParaAnalisar):
     """
-    Endpoint de Recomendação por TEMA (v10 "Agregador").
-    Usa o CÉREBRO DE CONTEXTO (embeddings_CONTEXTO.pkl).
-    Usa Média de Vetores + Agregação de Scores.
+    Endpoint de Recomendação por tema.
+    Retorna os 10 chunks mais relevantes usando um score
+    híbrido MULTIPLICATIVO e EXPONENCIAL (Vetor^0.5 * BM25^2.0).
     """
-    if embeddings_matrix_TEMA is None:
-        raise HTTPException(status_code=500, detail="Cérebro de Tema (Contexto) não está carregado.")
+    if embeddings_matrix_TEMA is None or bm25_TEMA is None:
+        raise HTTPException(status_code=500, detail="Cérebro de Tema (Vetor ou BM25) não está carregado.")
 
     frases_busca = limpar_texto_busca(item.texto)
-        
-    # 1. Média de Vetores da busca do usuário
-    vetores_de_busca = model.encode(frases_busca)
-    vetor_medio_busca = np.array([np.mean(vetores_de_busca, axis=0)])
+    query_texto = " ".join(frases_busca) 
 
-    # 2. Busca no CÉREBRO DE TEMA
-    similaridades = cosine_similarity(vetor_medio_busca, embeddings_matrix_TEMA)[0]
+    # --- Lógica Híbrida (v16.2) ---
+    vetor_medio_busca = np.array([np.mean(model.encode(frases_busca), axis=0)])
+    similaridades_vetor = cosine_similarity(vetor_medio_busca, embeddings_matrix_TEMA)[0]
+    query_tokenizada = query_texto.lower().split(" ")
+    similaridades_bm25 = bm25_TEMA.get_scores(query_tokenizada)
+    epsilon = 1e-9 
+    norm_vetor = (similaridades_vetor - np.min(similaridades_vetor)) / (np.max(similaridades_vetor) - np.min(similaridades_vetor) + epsilon)
+    norm_bm25 = (similaridades_bm25 - np.min(similaridades_bm25)) / (np.max(similaridades_bm25) - np.min(similaridades_bm25) + epsilon)
+    W_VETOR_EXP = 0.5
+    W_BM25_EXP  = 2.0
+    score_final_hibrido = (norm_vetor ** W_VETOR_EXP) * (norm_bm25 ** W_BM25_EXP)
+    score_final_hibrido = np.nan_to_num(score_final_hibrido, nan=0.0, posinf=0.0, neginf=0.0)
     
-    # 3. Agregação de Scores (Lógica v10)
-    INDICES_PARA_ANALISAR = 100
-    PONTO_DE_CORTE_SCORE = 0.3 
+    INDICES_PARA_ANALISAR = 10
+    indices_top_10 = np.argsort(score_final_hibrido)[:- (INDICES_PARA_ANALISAR + 1) :-1]
     
-    indices_top_100 = np.argsort(similaridades)[:- (INDICES_PARA_ANALISAR + 1) :-1]
-    
-    pontuacao_total_por_livro = {}
-    dados_dos_livros = {} 
-    
+    resultados_finais = []
+    dados_dos_livros = {}
+
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        for i in indices_top_100:
-            pontuacao_frase = float(similaridades[i])
-            if pontuacao_frase < PONTO_DE_CORTE_SCORE:
-                continue
-            
-            # Usa o MAPA DE TEMA
-            id_livro = int(ids_documentos_TEMA[i]) 
+        for i in indices_top_10:
+            item_index = index_TEMA[i]
+            id_livro = item_index['id_livro']
+            texto_chunk = item_index['texto']
             
             if id_livro not in dados_dos_livros:
-                cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
+                cursor.execute("SELECT id, titulo, autor FROM livros WHERE id = ?", (id_livro,))
                 livro_row = cursor.fetchone()
-                dados_dos_livros[id_livro] = formatar_livro_saida(livro_row) if livro_row else None
+                dados_dos_livros[id_livro] = dict(livro_row) if livro_row else None
             
             if dados_dos_livros[id_livro] is not None:
-                if id_livro not in pontuacao_total_por_livro:
-                    pontuacao_total_por_livro[id_livro] = 0
-                pontuacao_total_por_livro[id_livro] += pontuacao_frase
+                resultado = {
+                    "score_fusao_multiplicativa": round(float(score_final_hibrido[i]), 6),
+                    "score_vetor_normalizado": round(float(norm_vetor[i]), 6),
+                    "score_bm25_normalizado": round(float(norm_bm25[i]), 6),
+                    "obra": dados_dos_livros[id_livro],
+                    "texto_chunk_encontrado": texto_chunk
+                }
+                resultados_finais.append(resultado)
 
         conn.close()
-        
-        ids_ordenados = sorted(
-            pontuacao_total_por_livro, 
-            key=pontuacao_total_por_livro.get, 
-            reverse=True
-        )
-        
-        resultados_finais = []
-        for id_livro in ids_ordenados[:3]: # Pega os Top 3 livros
-            resultado = {
-                "pontuacao": round(pontuacao_total_por_livro[id_livro], 4),
-                "obra": dados_dos_livros[id_livro]
-            }
-            resultados_finais.append(resultado)
         return resultados_finais
         
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {e}")
 
 
-# --- ENDPOINT 2: BUSCA POR TRECHO (Lógica v9 - CITAÇÃO) ---
-# --- USA O CÉREBRO DE TRECHO (FRASES) ---
-@app.post("/encontrar-por-trecho", response_model=List[ResultadoComPontuacao])
+@app.post("/encontrar-por-trecho", response_model=List[ResultadoTrecho])
 async def encontrar_por_trecho(item: TextoParaAnalisar):
-    """
-    Endpoint de Recomendação por TRECHO (v9.0 "Citação").
-    Usa o CÉREBRO DE FRASES (embeddings.pkl).
-    Ideal para citações exatas.
-    """
     if embeddings_matrix_TRECHO is None:
-        raise HTTPException(status_code=500, detail="Cérebro de Trecho (Frases) não está carregado.")
-
+        raise HTTPException(status_code=500, detail="Cérebro de Trecho não está carregado.")
     frases_busca = limpar_texto_busca(item.texto)
-    
     texto_busca_final = frases_busca[0]
-    
     texto_vetorizado = model.encode([texto_busca_final])
-    
-    # Busca no CÉREBRO DE TRECHO
     similaridades = cosine_similarity(texto_vetorizado, embeddings_matrix_TRECHO)[0]
-    
-    indices_top_20 = np.argsort(similaridades)[:-21:-1]
-    
+    indices_top_5 = np.argsort(similaridades)[:-6:-1]
     resultados_finais = []
     ids_de_livros_ja_adicionados = set()
-    
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-
-        for i in indices_top_20:
-            # Usa o MAPA DE TRECHO
-            id_livro = int(ids_documentos_TRECHO[i]) 
-            
+        for i in indices_top_5:
+            item_index = index_TRECHO[i]
+            id_livro = item_index['id_livro']
+            texto_encontrado = item_index['texto']
             if id_livro not in ids_de_livros_ja_adicionados:
                 cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
                 livro_row = cursor.fetchone()
-                
                 if livro_row:
                     resultado = {
                         "pontuacao": round(float(similaridades[i]), 4),
+                        "texto_encontrado": texto_encontrado,
                         "obra": formatar_livro_saida(livro_row)
                     }
                     resultados_finais.append(resultado)
                     ids_de_livros_ja_adicionados.add(id_livro)
-            
             if len(resultados_finais) >= 3:
                 break 
-        
         conn.close()
         return resultados_finais
-        
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {e}")

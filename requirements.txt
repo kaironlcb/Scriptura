@@ -8,3 +8,4 @@ pdfplumber
 sentence-transformers
 numpy
 python-multipart
+rank-bm25

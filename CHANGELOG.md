@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0]
+### Adicionado
+- **Busca Híbrida (Hybrid Search):** Implementação de um sistema de pontuação combinada no endpoint `/recomendar-por-tema`. Agora a relevância é calculada pela fusão multiplicativa de:
+    1. **Similaridade Vetorial (SBERT):** Captura o significado semântico (Peso Exponencial 0.5).
+    2. **BM25 (Palavras-Chave):** Captura termos exatos e raros usando a biblioteca `rank_bm25` (Peso Exponencial 2.0).
+- **Indexação BM25 em Tempo Real:** O `main.py` agora constrói um índice de palavras-chave na inicialização, tokenizando todo o corpus de temas carregado do `.pkl`.
+- **Filtro de Limpeza "Exterminador":** Regex aprimorada (`RE_CONTROLE_INVISIVEL`) para remover caracteres de controle ASCII invisíveis que sujavam os índices.
+- **Upload de Livros via API:** Novo endpoint `POST /upload-livro` que aceita arquivos `.pdf`, salva no disco, converte para `.txt` e insere no banco com status `EM_REVISAO`, automatizando a entrada de novos dados.
+
+### Alterado
+- **Refinamento de Chunking:** O script `processar_temas.py` foi ajustado para ignorar chunks muito curtos (`< 100 caracteres`) ou gigantes (`> 10000`), melhorando a qualidade dos vetores de tema.
+- **Normalização de Scores:** Implementação de normalização Min-Max com epsilon para garantir que os scores de Vetor e BM25 estejam na mesma escala antes da fusão.
+
+---
+
 ## [0.7.0]
 ### Adicionado
 - **Arquitetura "Dois Cérebros" (Dual Brain):** Finalização da integração no `main.py` (v13.0). O sistema agora carrega simultaneamente:

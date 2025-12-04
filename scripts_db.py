@@ -1,10 +1,8 @@
-# scripts_db.py (v5.0 - com "Status")
 import sqlite3
 import os
 
 DB_NAME = 'literatura.db'
 
-# Script SQL com 46 livros, AGORA COM A COLUNA "STATUS"
 SQL_SCRIPT = """
 DROP TABLE IF EXISTS livros;
 CREATE TABLE livros (
@@ -78,7 +76,7 @@ def criar_e_popular_banco():
         cursor = conn.cursor()
         cursor.executescript(SQL_SCRIPT)
         conn.commit()
-        print(f"Banco de dados '{DB_NAME}' criado e populado com sucesso (v5.0 - 46 livros com status 'PROCESSADO')!")
+        print(f"Banco de dados '{DB_NAME}' criado e populado com sucesso.")
     except sqlite3.Error as e:
         print(f"Ocorreu um erro ao criar o banco de dados: {e}")
     finally:
