@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0] - Versão Estável
+### Lançamento
+- **Release Estável:** Consolidação de todos os módulos (API Híbrida, Processamento Granular, Frontend Web) em uma versão unificada para apresentação do TCC.
+- **Ecossistema Completo:** O sistema agora opera de ponta a ponta:
+    1. **Entrada:** Upload de PDFs ou carga inicial do banco.
+    2. **Processamento:** Pipeline de limpeza, chunking e vetorização (Dual Brain).
+    3. **Consumo:** Interface Web amigável consumindo a API via CORS.
+- **Banco de Dados "Ready-to-Use":** O script `scripts_db.py` foi validado para entregar 46 obras clássicas pré-configuradas com status `PROCESSADO`, permitindo que a busca funcione imediatamente após a instalação, sem necessidade de reprocessamento manual inicial.
+- **Facilidade de Execução:** Inclusão e validação do script `iniciar.bat` para orquestrar a ativação do ambiente virtual e subida do servidor em ambiente Windows com um único clique.
+
+### Correções
+- Estabilização das dependências no `requirements.txt`.
+- Ajustes finais de permissões de arquivo para os diretórios `static/pdfs` e `corpus/`.
+
+---
+
 ## [0.9.0]
 ### Adicionado
 - **Interface Web (Frontend):** Desenvolvimento de uma interface gráfica completa utilizando HTML5, CSS3 e Vanilla JavaScript. O sistema agora possui telas dedicadas para:

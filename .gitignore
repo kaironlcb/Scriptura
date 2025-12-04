@@ -5,12 +5,12 @@ venv/
 .env
 .venv
 
-# --- Dados e Bancos (Segurança e Peso) ---
+# --- Dados e Bancos ---
 *.db
 *.sqlite
 literatura.db
 
-# --- Artefatos de IA e Indexação (Binários pesados) ---
+# --- Artefatos de Indexação ---
 *.pkl
 ids_documentos.pkl
 embeddings.pkl
@@ -18,12 +18,10 @@ tfidf_matrix.pkl
 vectorizer.pkl
 
 # --- PASTAS DE DADOS BRUTOS ---
-# Ignora conteúdo, mas mantém a pasta (usando .gitkeep se precisar)
 corpus/*
 !corpus/.gitkeep
 
-# --- PDFs e Arquivos Estáticos Pesados ---
-# CUIDADO: Não ignore CSS ou JS se estiverem em static
+# --- PDFs e Arquivos Estáticos ---
 static/pdfs/*
 static/images/*
 
@@ -32,6 +30,3 @@ logs/
 uploads/
 .DS_Store
 Thumbs.db
-
-# --- Lixo / Temporários ---
-[140

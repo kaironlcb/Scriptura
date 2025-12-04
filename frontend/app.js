@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+ï»¿document.addEventListener('DOMContentLoaded', () => {
 
     const API_URL = 'http://127.0.0.1:8000';
 
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 uploadMessage.className = 'message-success';
-                uploadMessage.innerText = `Sucesso! "${result.titulo}" foi enviado para revisão.`;
+                uploadMessage.innerText = `Sucesso! "${result.titulo}" foi enviado para revisÃ£o.`;
                 formUpload.reset();
                 fileNameDisplay.textContent = 'Nenhum arquivo selecionado';
 
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const metadataSidebar = document.getElementById('metadata-sidebar');
         const resultsContainer = document.getElementById('results-container');
         if (!resultsContainer) {
-            console.error("Bug fatal: #results-container não encontrado.");
+            console.error("Bug fatal: #results-container nÃ£o encontrado.");
             return;
         }
 
@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         metadataContainer.innerHTML += `<div class="metadata-item"><b>Movimento:</b> ${obra.movimento_literario || 'N/A'}</div>`;
 
         if (obra.url_download) {
-            metadataContainer.innerHTML += `<a href="${API_URL}${obra.url_download}" target="_blank" class="metadata-item download-link">Clique aqui para baixar o PDF</a>`;
+            metadataContainer.innerHTML += `<a href="${API_URL}${obra.url_download}" target="_blank" class="metadata-item download-link">baixe o PDF</a>`;
         }
 
         if (trechos) {
