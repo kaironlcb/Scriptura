@@ -1,6 +1,19 @@
 # Changelog
 
-## [0.6.0] - 2025-11-04
+## [0.7.0]
+### Adicionado
+- **Arquitetura "Dois Cérebros" (Dual Brain):** Finalização da integração no `main.py` (v13.0). O sistema agora carrega simultaneamente:
+    1. **Cérebro de Trecho (`embeddings.pkl`):** Busca exata (frase a frase) para o endpoint `/encontrar-por-trecho`.
+    2. **Cérebro de Tema (`embeddings_CONTEXTO.pkl`):** Busca semântica abstrata para o endpoint `/recomendar-por-tema`.
+- **Pipeline de Contexto:** Novo script `processar_contexto.py` que implementa "Janelas Deslizantes" (*Chunk Size=5, Step=3*) para capturar ideias complexas em vez de apenas frases isoladas.
+- **Validação de Sincronia:** O script `verificar_indices.py` foi atualizado para auditar se o banco de dados (`.db`) está alinhado com ambos os índices (`.pkl`).
+
+### Alterado
+- **Lógica de Agregação:** O endpoint de tema agora utiliza *Score Aggregation* nos vetores de contexto para pontuar livros baseados na densidade de ideias relevantes, não apenas em uma única frase.
+
+---
+
+## [0.6.0]
 ### Adicionado
 - **Arquitetura de Busca Dupla:** Implementação no `main.py` com dois endpoints distintos:
     - `/recomendar-por-tema`: Usa média de vetores e agregação de scores para parágrafos descritivos.
@@ -16,7 +29,7 @@
 
 ---
 
-## [0.5.0] - 2025-11-20
+## [0.5.0] 
 ### Adicionado
 - **Busca por Fatiamento:** Nova lógica no endpoint `/recomendar-por-tema` que isola e utiliza apenas a primeira frase do texto de entrada. Isso foca o vetor semântico na ideia central e reduz o ruído causado por textos longos na busca.
 - **Indexação Granular:** Alteração estratégica no `processar_textos.py` para `CHUNK_SIZE = 1`. O sistema agora indexa frase por frase individualmente, aumentando a precisão na recuperação de trechos específicos.
@@ -28,7 +41,7 @@
 
 ---
 
-## [0.4.0] - 2025-11-15
+## [0.4.0] 
 ### Adicionado
 - **Processamento em Lotes:** Implementação de `MANUAL_BATCH_SIZE = 512` no script `processar_textos.py`. Agora a geração de embeddings é feita em pedaços, evitando estouro de memória RAM ao processar o corpus inteiro de uma vez.
 - **Filtro "Light" de Conteúdo:** Substituição da lógica de limpeza agressiva por uma `blacklist` específica (`JUNK_KEYWORDS`). O sistema agora remove apenas artefatos digitais óbvios (ex: "www.", "adobe acrobat", URLs), preservando mais texto literário válido.
@@ -40,7 +53,7 @@
 
 ---
 
-## [0.3.0] - 2025-11-04
+## [0.3.0] 
 ### Adicionado
 - **Motor de Busca Neural:** Substituição do TF-IDF por Sentence-Transformers (`paraphrase-multilingual-MiniLM-L12-v2`), permitindo busca semântica por significado real.
 - **Chunking Semântico:** Estratégia de janelas deslizantes com 3 frases e overlap de 2, garantindo continuidade contextual.
@@ -54,7 +67,7 @@
 
 ---
 
-## [0.2.0] - 2025-10-06
+## [0.2.0] 
 ### Adicionado
 - **Automação de ETL:** Implementado `auto_converter.py` com `pdfplumber` para extrair texto de PDFs automaticamente.
 - **Banco de Dados Populado:** `scripts_db.py` criado para inicializar o SQLite com 88 obras clássicas.

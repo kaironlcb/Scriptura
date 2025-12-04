@@ -1,6 +1,12 @@
-# main.py (v11.0 - "Busca Dupla")
-# ADICIONADO: Endpoint /encontrar-por-trecho (lógica v9.0)
-# MANTIDO: Endpoint /recomendar-por-tema (lógica v10.0)
+# main.py (v13.0 - "Dois Cérebros")
+#
+# ATUALIZAÇÃO ESTRUTURAL:
+# - Carrega OS DOIS "cérebros" (.pkl) na inicialização.
+#
+# ATUALIZAÇÃO ENDPOINTS:
+# - /encontrar-por-trecho (v9): Usa o cérebro de FRASES (embeddings.pkl)
+# - /recomendar-por-tema (v10): Usa o cérebro de CONTEXTO (embeddings_CONTEXTO.pkl)
+#   e a lógica de AGREGAÇÃO (v10), que é a correta para chunks.
 
 import sqlite3
 import joblib
@@ -27,8 +33,6 @@ class ObraBase(BaseModel):
     url_download: str | None
 
 class ResultadoComPontuacao(BaseModel):
-    # Para /recomendar-por-tema, é o score agregado (pode ser > 1.0)
-    # Para /encontrar-por-trecho, é o score da melhor frase (max 1.0)
     pontuacao: float 
     obra: ObraBase
 
@@ -39,39 +43,56 @@ class TextoParaAnalisar(BaseModel):
 DB_PATH = 'literatura.db'
 RE_CONTROLE_INVISIVEL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
-print("Carregando o 'cérebro' semântico (Embeddings)...")
-try:
-    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-    embeddings_matrix = joblib.load('embeddings.pkl')
-    ids_documentos = joblib.load('ids_documentos.pkl')
-    print("Modelo e índice de busca carregados com sucesso.")
-except FileNotFoundError:
-    print("AVISO: Arquivos de índice (embeddings.pkl, etc.) não encontrados.")
-    model = embeddings_matrix = ids_documentos = None
-except Exception as e:
-    print(f"ERRO CRÍTICO AO CARREGAR ÍNDICE: {e}")
-    model = embeddings_matrix = ids_documentos = None
+# --- INÍCIO DA MUDANÇA (v13.0): Carregando os 2 Cérebros ---
 
-print("Carregando modelo spaCy (pt_core_news_lg) para o 'Ouvido'...")
+# Modelos de IA (Carregados uma vez)
+print("Carregando modelo SentenceTransformer (MiniLM)...")
+model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+print("Carregando modelo spaCy (pt_core_news_lg)...")
+nlp_main = spacy.load('pt_core_news_lg', disable=['parser', 'ner', 'tagger'])
+nlp_main.add_pipe('sentencizer')
+
+# Cérebro 1: TRECHO (Frases únicas)
+print("Carregando 'Cérebro de Trecho' (embeddings.pkl)...")
 try:
-    nlp_main = spacy.load('pt_core_news_lg', disable=['parser', 'ner', 'tagger'])
-    nlp_main.add_pipe('sentencizer')
-    print("Modelo spaCy do 'Ouvido' carregado.")
+    embeddings_matrix_TRECHO = joblib.load('embeddings.pkl')
+    ids_documentos_TRECHO = joblib.load('ids_documentos.pkl')
+    print("Cérebro de Trecho carregado com sucesso.")
+except FileNotFoundError:
+    print("ERRO FATAL: Cérebro de Trecho (embeddings.pkl) não encontrado.")
+    print("Execute 'processar_textos.py' primeiro.")
+    embeddings_matrix_TRECHO = ids_documentos_TRECHO = None
 except Exception as e:
-    print(f"ERRO CRÍTICO AO CARREGAR spaCy: {e}")
-    nlp_main = None
+    print(f"ERRO CRÍTICO AO CARREGAR 'embeddings.pkl': {e}")
+    embeddings_matrix_TRECHO = ids_documentos_TRECHO = None
+
+# Cérebro 2: TEMA (Chunks de Contexto)
+print("Carregando 'Cérebro de Tema' (embeddings_CONTEXTO.pkl)...")
+try:
+    embeddings_matrix_TEMA = joblib.load('embeddings_CONTEXTO.pkl')
+    ids_documentos_TEMA = joblib.load('ids_documentos_CONTEXTO.pkl')
+    print("Cérebro de Tema carregado com sucesso.")
+except FileNotFoundError:
+    print("ERRO FATAL: Cérebro de Tema (embeddings_CONTEXTO.pkl) não encontrado.")
+    print("Execute 'processar_contexto.py' primeiro.")
+    embeddings_matrix_TEMA = ids_documentos_TEMA = None
+except Exception as e:
+    print(f"ERRO CRÍTICO AO CARREGAR 'embeddings_CONTEXTO.pkl': {e}")
+    embeddings_matrix_TEMA = ids_documentos_TEMA = None
+
+# --- FIM DA MUDANÇA (v13.0) ---
+
 
 # --- Inicia a aplicação FastAPI ---
 app = FastAPI(
-    title="Scriptura API (v11.0 - Busca Dupla)",
-    description="Uma API com endpoints separados para busca por Tema e por Trecho.",
-    version="11.0.0",
+    title="Scriptura API (v13.0 - Dois Cérebros)",
+    description="API com busca de Trecho (Cérebro 1) e Tema (Cérebro 2).",
+    version="13.0.0",
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Função helper para formatar a saída do livro ---
+# --- Funções helper (sem alteração) ---
 def formatar_livro_saida(row):
-    """Converte uma linha do DB (sqlite3.Row) em um dict com url_download."""
     if not row: return None
     livro = dict(row)
     if livro.get("caminho_pdf"):
@@ -80,25 +101,20 @@ def formatar_livro_saida(row):
         livro["url_download"] = None
     return livro
 
-# --- Função helper para limpeza de texto ---
 def limpar_texto_busca(texto_sujo: str):
-    """Limpa e sentenciza o texto de busca do usuário."""
     texto_limpo = RE_CONTROLE_INVISIVEL.sub('', texto_sujo)
     texto_limpo = texto_limpo.lstrip(string.whitespace)
     texto_limpo = re.sub(r'(\n|\s){2,}', ' \n', texto_limpo)
-    
     doc_spacy = nlp_main(texto_limpo)
     frases_busca = [s.text.strip() for s in doc_spacy.sents if s.text.strip()]
-    
     if not frases_busca:
         raise HTTPException(status_code=422, detail="Nenhuma frase válida encontrada na busca.")
-    
     return frases_busca
 
 # --- Endpoints da API ---
 @app.get("/")
 def read_root():
-    return {"message": "Bem-vindo à API Semântica do Scriptura! Use /recomendar-por-tema ou /encontrar-por-trecho."}
+    return {"message": "Bem-vindo à API Scriptura (v13.0 - Dois Cérebros)!"}
 
 # --- O "RECEPCIONISTA" (v9.0 - Sem alterações) ---
 @app.post("/upload-livro")
@@ -111,16 +127,14 @@ async def upload_livro(
     file: UploadFile = File(...)
 ):
     # ... (O código deste endpoint não mudou) ...
+    # ... (Aviso: este upload só atualiza o cérebro de TRECHO, não o de TEMA) ...
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="O arquivo enviado não é um .pdf.")
-    
     nome_arquivo_seguro = re.sub(r"[^a-zA-Z0-9_\-.]", "_", titulo.lower().replace(" ", "_"))
     nome_pdf = f"{nome_arquivo_seguro}.pdf"
     nome_txt = f"{nome_arquivo_seguro}.txt"
-    
     caminho_pdf_salvar = os.path.join("static", "pdfs", nome_pdf)
     caminho_txt_gerar = os.path.join("corpus", nome_txt)
-
     try:
         with open(caminho_pdf_salvar, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -128,7 +142,6 @@ async def upload_livro(
         raise HTTPException(status_code=500, detail=f"Erro ao salvar o PDF: {e}")
     finally:
         file.file.close()
-
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -149,36 +162,36 @@ async def upload_livro(
         raise HTTPException(status_code=400, detail=f"Um livro com este título/caminho já existe.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar no banco de dados: {e}")
-
     return {
-        "mensagem": "Livro recebido com sucesso! Ele está na fila para processamento.",
+        "mensagem": "Livro recebido com sucesso! Ele está na fila para processamento (no cérebro de trechos).",
         "livro_id": novo_id,
         "titulo": titulo,
         "status": "PENDENTE"
     }
-# --- FIM DO "RECEPCIONISTA" ---
 
 
-# --- ENDPOINT 1: BUSCA POR TEMA (Lógica v10.0) ---
+# --- ENDPOINT 1: BUSCA POR TEMA (Lógica v10 - AGREGAÇÃO) ---
+# --- USA O CÉREBRO DE TEMA (CONTEXTO) ---
 @app.post("/recomendar-por-tema", response_model=List[ResultadoComPontuacao])
 async def recomendar_por_tema(item: TextoParaAnalisar):
     """
-    Endpoint de Recomendação por TEMA (v10.0 "Agregador").
+    Endpoint de Recomendação por TEMA (v10 "Agregador").
+    Usa o CÉREBRO DE CONTEXTO (embeddings_CONTEXTO.pkl).
     Usa Média de Vetores + Agregação de Scores.
-    Ideal para parágrafos descritivos.
     """
-    if model is None or nlp_main is None or embeddings_matrix is None:
-        raise HTTPException(status_code=500, detail="Índice de busca ou spaCy não está carregado.")
+    if embeddings_matrix_TEMA is None:
+        raise HTTPException(status_code=500, detail="Cérebro de Tema (Contexto) não está carregado.")
 
     frases_busca = limpar_texto_busca(item.texto)
         
-    # --- MELHORIA 1: Média de Vetores ---
+    # 1. Média de Vetores da busca do usuário
     vetores_de_busca = model.encode(frases_busca)
     vetor_medio_busca = np.array([np.mean(vetores_de_busca, axis=0)])
 
-    similaridades = cosine_similarity(vetor_medio_busca, embeddings_matrix)[0]
+    # 2. Busca no CÉREBRO DE TEMA
+    similaridades = cosine_similarity(vetor_medio_busca, embeddings_matrix_TEMA)[0]
     
-    # --- MELHORIA 2: Agregação de Scores ---
+    # 3. Agregação de Scores (Lógica v10)
     INDICES_PARA_ANALISAR = 100
     PONTO_DE_CORTE_SCORE = 0.3 
     
@@ -196,7 +209,9 @@ async def recomendar_por_tema(item: TextoParaAnalisar):
             pontuacao_frase = float(similaridades[i])
             if pontuacao_frase < PONTO_DE_CORTE_SCORE:
                 continue
-            id_livro = int(ids_documentos[i])
+            
+            # Usa o MAPA DE TEMA
+            id_livro = int(ids_documentos_TEMA[i]) 
             
             if id_livro not in dados_dos_livros:
                 cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
@@ -229,27 +244,27 @@ async def recomendar_por_tema(item: TextoParaAnalisar):
         raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {e}")
 
 
-# --- ENDPOINT 2: BUSCA POR TRECHO (Lógica v9.0) ---
+# --- ENDPOINT 2: BUSCA POR TRECHO (Lógica v9 - CITAÇÃO) ---
+# --- USA O CÉREBRO DE TRECHO (FRASES) ---
 @app.post("/encontrar-por-trecho", response_model=List[ResultadoComPontuacao])
 async def encontrar_por_trecho(item: TextoParaAnalisar):
     """
     Endpoint de Recomendação por TRECHO (v9.0 "Citação").
-    Usa apenas o vetor da PRIMEIRA FRASE.
-    Retorna os livros que contêm as frases mais parecidas.
+    Usa o CÉREBRO DE FRASES (embeddings.pkl).
     Ideal para citações exatas.
     """
-    if model is None or nlp_main is None or embeddings_matrix is None:
-        raise HTTPException(status_code=500, detail="Índice de busca ou spaCy não está carregado.")
+    if embeddings_matrix_TRECHO is None:
+        raise HTTPException(status_code=500, detail="Cérebro de Trecho (Frases) não está carregado.")
 
     frases_busca = limpar_texto_busca(item.texto)
     
-    # --- Lógica v9.0: Pega apenas a primeira frase ---
     texto_busca_final = frases_busca[0]
     
     texto_vetorizado = model.encode([texto_busca_final])
-    similaridades = cosine_similarity(texto_vetorizado, embeddings_matrix)[0]
     
-    # Pega as 20 frases mais parecidas
+    # Busca no CÉREBRO DE TRECHO
+    similaridades = cosine_similarity(texto_vetorizado, embeddings_matrix_TRECHO)[0]
+    
     indices_top_20 = np.argsort(similaridades)[:-21:-1]
     
     resultados_finais = []
@@ -261,16 +276,15 @@ async def encontrar_por_trecho(item: TextoParaAnalisar):
         cursor = conn.cursor()
 
         for i in indices_top_20:
-            id_livro = int(ids_documentos[i])
+            # Usa o MAPA DE TRECHO
+            id_livro = int(ids_documentos_TRECHO[i]) 
             
-            # Pega os 3 primeiros livros ÚNICOS
             if id_livro not in ids_de_livros_ja_adicionados:
                 cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
                 livro_row = cursor.fetchone()
                 
                 if livro_row:
                     resultado = {
-                        # A pontuação é o score daquela ÚNICA frase
                         "pontuacao": round(float(similaridades[i]), 4),
                         "obra": formatar_livro_saida(livro_row)
                     }
@@ -278,7 +292,7 @@ async def encontrar_por_trecho(item: TextoParaAnalisar):
                     ids_de_livros_ja_adicionados.add(id_livro)
             
             if len(resultados_finais) >= 3:
-                break # Para quando tivermos 3 livros
+                break 
         
         conn.close()
         return resultados_finais
