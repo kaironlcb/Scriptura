@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scriptura - Identificar Trecho</title>
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <header class="header">
+        <h1>Scriptura <span class="tagline">Sua API de pesquisa literária.</span></h1>
+    </header>
+
+    <div class="page-container">
+
+        <nav class="sidebar-nav">
+            <a href="trecho.html" class="nav-button active">Identificar trecho</a>
+            <a href="contexto.html" class="nav-button">Identificar contexto</a>
+            <a href="upload.html" class="nav-button">Enviar livro</a>
+        </nav>
+
+        <main class="main-content">
+            <form id="form-trecho">
+                <textarea id="input-trecho" placeholder="Digite o trecho que você procura..."></textarea>
+                <button type="submit" class="clickable-box" id="btn-obras">
+                    Obras identificadas
+                </button>
+            </form>
+
+            <aside id="results-sidebar" class="results-box hidden">
+                <div id="results-container">
+                </div>
+            </aside>
+        </main>
+
+        <aside id="metadata-sidebar" class="metadata-box hidden">
+            <div id="metadata-container">
+            </div>
+        </aside>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

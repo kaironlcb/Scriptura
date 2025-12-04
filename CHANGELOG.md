@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.0]
+### Adicionado
+- **Interface Web (Frontend):** Desenvolvimento de uma interface gráfica completa utilizando HTML5, CSS3 e Vanilla JavaScript. O sistema agora possui telas dedicadas para:
+    - `trecho.html`: Interface para busca exata por fragmentos de texto.
+    - `contexto.html`: Interface para busca semântica híbrida por temas.
+    - `upload.html`: Formulário visual para envio e cadastro de novas obras em PDF.
+- **Middleware CORS:** Configuração de `CORSMiddleware` no `main.py` para permitir que o navegador (Frontend) faça requisições assíncronas (fetch) para a API sem bloqueios de segurança.
+- **Script de Inicialização:** Criação do arquivo `iniciar.bat` para automatizar a ativação do ambiente virtual (`venv`) e a execução do servidor Uvicorn no Windows com um clique duplo.
+- **Estilização Neobrutalista:** Implementação do arquivo `style.css` definindo a identidade visual do projeto com fontes serifadas (Playfair Display e Lora) e paleta de cores em tons de papel antigo.
+
+### Alterado
+- **Endpoints de Busca:** Refatoração nas rotas `/encontrar-por-trecho` e `/recomendar-por-tema` para retornarem estruturas de dados compatíveis com a renderização dinâmica do JavaScript (`displayResults`).
+
+---
+
 ## [0.8.0]
 ### Adicionado
 - **Busca Híbrida (Hybrid Search):** Implementação de um sistema de pontuação combinada no endpoint `/recomendar-por-tema`. Agora a relevância é calculada pela fusão multiplicativa de:

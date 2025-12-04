@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import sqlite3
 import joblib
 import numpy as np
@@ -15,9 +13,11 @@ from typing import List, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
+from fastapi.middleware.cors import CORSMiddleware
+from collections import defaultdict
 
-# --- Modelos Pydantic (Estrutura de Dados) ---
 class ObraBase(BaseModel):
+    id: int
     titulo: str
     autor: str
     ano_lancamento: int | None
@@ -30,20 +30,15 @@ class ResultadoTrecho(BaseModel):
     texto_encontrado: str 
     obra: ObraBase
 
-class ObraTema(BaseModel):
-    id: int
-    titulo: str
-    autor: str
-
 class ResultadoTema(BaseModel):
     score_fusao_multiplicativa: float
     score_vetor_normalizado: float
     score_bm25_normalizado: float
-    obra: ObraTema
+    obra: ObraBase
     texto_chunk_encontrado: str
 
 class TextoParaAnalisar(BaseModel):
-    texto: str = Field(min_length=5) 
+    texto: str = Field(min_length=5)
 
 DB_PATH = 'literatura.db'
 RE_CONTROLE_INVISIVEL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
@@ -61,7 +56,7 @@ try:
     print(f"Cérebro de Trecho carregado. ({len(index_TRECHO)} frases)")
 except FileNotFoundError:
     print("ERRO FATAL: Cérebro de Trecho (index_TRECHO.pkl) não encontrado.")
-    print("           Execute 'processar_textos.py' primeiro.")
+    print("           Execute 'processar_textos.py' (v9.1) primeiro.")
     embeddings_matrix_TRECHO = index_TRECHO = None
 except Exception as e:
     print(f"ERRO CRÍTICO AO CARREGAR 'index_TRECHO.pkl': {e}")
@@ -74,7 +69,7 @@ try:
     print(f"Cérebro de Tema carregado. ({len(index_TEMA)} chunks)")
 except FileNotFoundError:
     print("ERRO FATAL: Cérebro de Tema (index_TEMA.pkl) não encontrado.")
-    print("           Execute 'processar_temas.py' primeiro.")
+    print("           Execute 'processar_temas.py' (v2.1) primeiro.")
     embeddings_matrix_TEMA = index_TEMA = None
 except Exception as e:
     print(f"ERRO CRÍTICO AO CARREGAR 'index_TEMA.pkl': {e}")
@@ -88,11 +83,24 @@ if index_TEMA:
     bm25_TEMA = BM25Okapi(tokenized_corpus_tema)
     print("Índice BM25 construído com sucesso.")
 
-
 app = FastAPI(
-    title="Scriptura",
-    version="1.0.0",
+    title="Scriptura API (v18.1 - TESTE DE VERIFICACAO)",
+    description="API Híbrida (v16.2) com endpoint de upload e permissões CORS.",
+    version="18.1.0",
 )
+
+origins = [
+    "*",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def formatar_livro_saida(row):
@@ -116,7 +124,7 @@ def limpar_texto_busca(texto_sujo: str):
 
 @app.get("/")
 def read_root():
-    return {"message": "Bem-vindo à API Scriptura!"}
+    return {"message": "Bem-vindo à API Scriptura (v18.1 - TESTE DE VERIFICACAO)!"}
 
 @app.post("/upload-livro")
 async def upload_livro(
@@ -162,7 +170,7 @@ async def upload_livro(
         novo_id = cursor.lastrowid
         conn.close()
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail=f"Um livro com este título/caminho já existe.")
+        raise HTTPException(status_code=400, detail="Um livro com este título/caminho já existe.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar no banco de dados: {e}")
 
@@ -173,21 +181,14 @@ async def upload_livro(
         "status": "EM_REVISAO"
     }
 
-
 @app.post("/recomendar-por-tema", response_model=List[ResultadoTema])
 async def recomendar_por_tema(item: TextoParaAnalisar):
-    """
-    Endpoint de Recomendação por tema.
-    Retorna os 10 chunks mais relevantes usando um score
-    híbrido MULTIPLICATIVO e EXPONENCIAL (Vetor^0.5 * BM25^2.0).
-    """
     if embeddings_matrix_TEMA is None or bm25_TEMA is None:
         raise HTTPException(status_code=500, detail="Cérebro de Tema (Vetor ou BM25) não está carregado.")
 
     frases_busca = limpar_texto_busca(item.texto)
     query_texto = " ".join(frases_busca) 
 
-    # --- Lógica Híbrida (v16.2) ---
     vetor_medio_busca = np.array([np.mean(model.encode(frases_busca), axis=0)])
     similaridades_vetor = cosine_similarity(vetor_medio_busca, embeddings_matrix_TEMA)[0]
     query_tokenizada = query_texto.lower().split(" ")
@@ -195,71 +196,94 @@ async def recomendar_por_tema(item: TextoParaAnalisar):
     epsilon = 1e-9 
     norm_vetor = (similaridades_vetor - np.min(similaridades_vetor)) / (np.max(similaridades_vetor) - np.min(similaridades_vetor) + epsilon)
     norm_bm25 = (similaridades_bm25 - np.min(similaridades_bm25)) / (np.max(similaridades_bm25) - np.min(similaridades_bm25) + epsilon)
-    W_VETOR_EXP = 0.5
-    W_BM25_EXP  = 2.0
-    score_final_hibrido = (norm_vetor ** W_VETOR_EXP) * (norm_bm25 ** W_BM25_EXP)
+    
+    W_VETOR = 0.4
+    W_BM25  = 0.6
+    score_final_hibrido = (W_VETOR * norm_vetor) + (W_BM25 * norm_bm25)
+    
     score_final_hibrido = np.nan_to_num(score_final_hibrido, nan=0.0, posinf=0.0, neginf=0.0)
     
-    INDICES_PARA_ANALISAR = 10
-    indices_top_10 = np.argsort(score_final_hibrido)[:- (INDICES_PARA_ANALISAR + 1) :-1]
+    LIMITE_LIVROS_DIFERENTES = 5
+    LIMITE_CHUNKS_POR_LIVRO = 25
     
-    resultados_finais = []
+    livros_chunks = defaultdict(list)
     dados_dos_livros = {}
-
+    
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-
-        for i in indices_top_10:
+        
+        for i, score in enumerate(score_final_hibrido):
             item_index = index_TEMA[i]
             id_livro = item_index['id_livro']
-            texto_chunk = item_index['texto']
             
             if id_livro not in dados_dos_livros:
-                cursor.execute("SELECT id, titulo, autor FROM livros WHERE id = ?", (id_livro,))
+                cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
                 livro_row = cursor.fetchone()
-                dados_dos_livros[id_livro] = dict(livro_row) if livro_row else None
+                dados_dos_livros[id_livro] = formatar_livro_saida(livro_row) if livro_row else None
             
-            if dados_dos_livros[id_livro] is not None:
-                resultado = {
-                    "score_fusao_multiplicativa": round(float(score_final_hibrido[i]), 6),
-                    "score_vetor_normalizado": round(float(norm_vetor[i]), 6),
-                    "score_bm25_normalizado": round(float(norm_bm25[i]), 6),
-                    "obra": dados_dos_livros[id_livro],
-                    "texto_chunk_encontrado": texto_chunk
-                }
-                resultados_finais.append(resultado)
+            if dados_dos_livros[id_livro] is None:
+                continue
 
+            resultado = {
+                "score_fusao_multiplicativa": round(float(score), 6),
+                "score_vetor_normalizado": round(float(norm_vetor[i]), 6),
+                "score_bm25_normalizado": round(float(norm_bm25[i]), 6),
+                "obra": dados_dos_livros[id_livro],
+                "texto_chunk_encontrado": item_index['texto']
+            }
+            livros_chunks[id_livro].append(resultado)
+        
         conn.close()
+
+        livros_melhor_score = []
+        for id_livro, chunks in livros_chunks.items():
+            chunks.sort(key=lambda x: x['score_fusao_multiplicativa'], reverse=True)
+            melhor_score = chunks[0]['score_fusao_multiplicativa']
+            livros_melhor_score.append((id_livro, melhor_score, chunks[:LIMITE_CHUNKS_POR_LIVRO]))
+
+        livros_melhor_score.sort(key=lambda x: x[1], reverse=True)
+        
+        resultados_finais = []
+        for id_livro, score, chunks in livros_melhor_score[:LIMITE_LIVROS_DIFERENTES]:
+            resultados_finais.extend(chunks)
+            
         return resultados_finais
         
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {e}")
 
-
 @app.post("/encontrar-por-trecho", response_model=List[ResultadoTrecho])
 async def encontrar_por_trecho(item: TextoParaAnalisar):
     if embeddings_matrix_TRECHO is None:
-        raise HTTPException(status_code=500, detail="Cérebro de Trecho não está carregado.")
+        raise HTTPException(status_code=500, detail="Cérebro de Trecho (Frases) não está carregado.")
+        
     frases_busca = limpar_texto_busca(item.texto)
     texto_busca_final = frases_busca[0]
+    
     texto_vetorizado = model.encode([texto_busca_final])
     similaridades = cosine_similarity(texto_vetorizado, embeddings_matrix_TRECHO)[0]
-    indices_top_5 = np.argsort(similaridades)[:-6:-1]
+    
+    indices_top_20 = np.argsort(similaridades)[:-21:-1]
+    
     resultados_finais = []
     ids_de_livros_ja_adicionados = set()
+    
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        for i in indices_top_5:
+        
+        for i in indices_top_20:
             item_index = index_TRECHO[i]
             id_livro = item_index['id_livro']
             texto_encontrado = item_index['texto']
+            
             if id_livro not in ids_de_livros_ja_adicionados:
                 cursor.execute("SELECT * FROM livros WHERE id = ?", (id_livro,))
                 livro_row = cursor.fetchone()
+                
                 if livro_row:
                     resultado = {
                         "pontuacao": round(float(similaridades[i]), 4),
@@ -268,8 +292,10 @@ async def encontrar_por_trecho(item: TextoParaAnalisar):
                     }
                     resultados_finais.append(resultado)
                     ids_de_livros_ja_adicionados.add(id_livro)
-            if len(resultados_finais) >= 3:
+
+            if len(resultados_finais) >= 5:
                 break 
+                
         conn.close()
         return resultados_finais
     except sqlite3.Error as e:

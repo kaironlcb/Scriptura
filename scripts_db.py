@@ -17,7 +17,6 @@ CREATE TABLE livros (
     status TEXT NOT NULL DEFAULT 'PROCESSADO' -- NOVO!
 );
 
--- Todos os nossos 46 livros-base já entram como 'PROCESSADO'
 INSERT INTO livros (titulo, autor, ano_lancamento, genero, movimento_literario, caminho_arquivo, caminho_pdf) VALUES
 ('A Cidade e as Serras', 'Eça de Queiroz', 1901, 'Romance', 'Realismo', 'corpus/a_cidade_e_as_serras.txt', 'static/pdfs/a_cidade_e_as_serras.pdf'),
 ('A Ilustre Casa de Ramires', 'Eça de Queiroz', 1900, 'Romance', 'Realismo', 'corpus/a_ilustre_casa_de_ramires.txt', 'static/pdfs/a_ilustre_casa_de_ramires.pdf'),
