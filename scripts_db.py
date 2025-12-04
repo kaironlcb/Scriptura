@@ -1,8 +1,10 @@
+# scripts_db.py (v5.0 - com "Status")
 import sqlite3
 import os
 
 DB_NAME = 'literatura.db'
 
+# Script SQL com 46 livros, AGORA COM A COLUNA "STATUS"
 SQL_SCRIPT = """
 DROP TABLE IF EXISTS livros;
 CREATE TABLE livros (
@@ -13,9 +15,11 @@ CREATE TABLE livros (
     genero TEXT,
     movimento_literario TEXT,
     caminho_arquivo TEXT UNIQUE NOT NULL,
-    caminho_pdf TEXT UNIQUE
+    caminho_pdf TEXT UNIQUE,
+    status TEXT NOT NULL DEFAULT 'PROCESSADO' -- NOVO!
 );
 
+-- Todos os nossos 46 livros-base já entram como 'PROCESSADO'
 INSERT INTO livros (titulo, autor, ano_lancamento, genero, movimento_literario, caminho_arquivo, caminho_pdf) VALUES
 ('A Cidade e as Serras', 'Eça de Queiroz', 1901, 'Romance', 'Realismo', 'corpus/a_cidade_e_as_serras.txt', 'static/pdfs/a_cidade_e_as_serras.pdf'),
 ('A Ilustre Casa de Ramires', 'Eça de Queiroz', 1900, 'Romance', 'Realismo', 'corpus/a_ilustre_casa_de_ramires.txt', 'static/pdfs/a_ilustre_casa_de_ramires.pdf'),
@@ -74,7 +78,7 @@ def criar_e_popular_banco():
         cursor = conn.cursor()
         cursor.executescript(SQL_SCRIPT)
         conn.commit()
-        print(f"Banco de dados '{DB_NAME}' criado e populado com sucesso (46 livros)!")
+        print(f"Banco de dados '{DB_NAME}' criado e populado com sucesso (v5.0 - 46 livros com status 'PROCESSADO')!")
     except sqlite3.Error as e:
         print(f"Ocorreu um erro ao criar o banco de dados: {e}")
     finally:

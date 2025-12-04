@@ -1,9 +1,10 @@
 fastapi
 uvicorn[standard]
 pydantic
-python-dotenv
 spacy
 scikit-learn
 joblib
 pdfplumber
 sentence-transformers
+numpy
+python-multipart

@@ -1,58 +1,103 @@
-# converter_pdf.py
-
 import pdfplumber
 import os
+import re
+import string
 
-# Define as pastas de origem (onde estão os PDFs) e de destino (onde salvar os TXTs)
-PASTA_PDFS = 'static/pdfs/'
-PASTA_CORPUS = 'corpus/'
+MARCADORES_INICIO = re.compile(
+    r'\b(CAPÍTULO\s+(I|1)|CANTO\s+(I|1)|ATO\s+(I|1)|PARTE\s+(I|1)|LIVRO\s+(I|1)|INTRODUÇÃO|PRIMEIRA\s+PARTE)\b',
+    re.IGNORECASE
+)
 
-# Garante que as pastas de destino existam
-os.makedirs(PASTA_PDFS, exist_ok=True)
-os.makedirs(PASTA_CORPUS, exist_ok=True)
-
-print(f"--- Iniciando conversão de PDFs da pasta '{PASTA_PDFS}' ---")
-
-# Verifica se a pasta de origem existe e não está vazia
-if not os.path.exists(PASTA_PDFS) or not os.listdir(PASTA_PDFS):
-    print(f"AVISO: A pasta de origem '{PASTA_PDFS}' não existe ou está vazia.")
-    print("Por favor, adicione os arquivos PDF que deseja converter e tente novamente.")
-else:
-    # Lista todos os arquivos na pasta de PDFs
-    arquivos_na_pasta = os.listdir(PASTA_PDFS)
-    pdfs_encontrados = [arquivo for arquivo in arquivos_na_pasta if arquivo.lower().endswith('.pdf')]
+def converter_pdf_para_txt_limpo(caminho_pdf_completo, caminho_txt_completo):
+    """
+    Converte um ÚNICO PDF para .txt, aplicando a limpeza "Bisturi".
+    Verifica se o .txt já existe antes de processar.
+    Retorna True se o .txt foi criado (ou já existia), False se deu erro.
+    """
     
-    print(f"Encontrados {len(pdfs_encontrados)} arquivos PDF para converter.")
+    if os.path.exists(caminho_txt_completo):
+        print(f"  AVISO (converter): O arquivo .txt '{caminho_txt_completo}' já existe. Pulando conversão.")
+        return True 
 
-    for nome_arquivo_pdf in pdfs_encontrados:
-        caminho_pdf_completo = os.path.join(PASTA_PDFS, nome_arquivo_pdf)
+    print(f"  [CONVERTENDO]: {caminho_pdf_completo}")
+    
+    texto_completo_original = ""
+    try:
+        with pdfplumber.open(caminho_pdf_completo) as pdf:
+            for i, pagina in enumerate(pdf.pages):
+                texto_pagina = pagina.extract_text(x_tolerance=1, y_tolerance=1)
+                if texto_pagina:
+                    texto_completo_original += texto_pagina + "\n"
         
-        # Define o nome do arquivo de texto de saída (mesmo nome, extensão .txt)
-        nome_arquivo_txt = os.path.splitext(nome_arquivo_pdf)[0] + '.txt'
-        caminho_txt_completo = os.path.join(PASTA_CORPUS, nome_arquivo_txt)
+        match = MARCADORES_INICIO.search(texto_completo_original)
+        texto_para_salvar = ""
         
-        print(f"\n[CONVERTENDO]: {nome_arquivo_pdf}")
+        if match:
+            start_index = match.end() 
+            texto_para_salvar = texto_completo_original[start_index:]
+            texto_para_salvar = texto_para_salvar.lstrip(string.whitespace + '-\n')
+            print(f"    -> Marcador de início encontrado! Lixo da capa removido.")
+        else:
+            texto_para_salvar = texto_completo_original
+            print(f"    -> Marcador não encontrado. Salvando o texto inteiro.")
         
-        texto_completo = ""
-        try:
-            # Abre o arquivo PDF com o pdfplumber
-            with pdfplumber.open(caminho_pdf_completo) as pdf:
-                # Itera sobre cada página do PDF
-                for i, pagina in enumerate(pdf.pages):
-                    # Extrai o texto da página
-                    texto_pagina = pagina.extract_text()
-                    if texto_pagina:  # Adiciona o texto se a extração for bem-sucedida
-                        texto_completo += texto_pagina + "\n"
-            
-            # Salva o texto extraído no arquivo .txt com codificação UTF-8
-            with open(caminho_txt_completo, 'w', encoding='utf-8') as f:
-                f.write(texto_completo)
-            
-            print(f"  [SUCESSO] -> Salvo em '{caminho_txt_completo}'")
+        with open(caminho_txt_completo, 'w', encoding='utf-8') as f:
+            f.write(texto_para_salvar)
         
-        except Exception as e:
-            # Captura e informa erros que possam ocorrer (ex: PDF corrompido)
-            print(f"  [ERRO] -> Não foi possível converter o arquivo {nome_arquivo_pdf}.")
-            print(f"          Motivo: {e}")
+        print(f"  [SUCESSO] -> Salvo em '{caminho_txt_completo}'")
+        return True
 
-    print("\n--- Conversões concluídas! ---")
+    except Exception as e:
+        print(f"  [ERRO] -> Não foi possível processar o arquivo {caminho_pdf_completo}.")
+        print(f"          Motivo: {e}")
+        return False
+
+def rodar_build_limpo_completo():
+    """
+    Função "mestre" que processa TODOS os 46 PDFs da pasta static/pdfs/.
+    """
+    PASTA_PDFS = 'static/pdfs/'
+    PASTA_CORPUS = 'corpus/'
+
+    os.makedirs(PASTA_PDFS, exist_ok=True)
+    os.makedirs(PASTA_CORPUS, exist_ok=True)
+    
+    print(f"--- Iniciando conversão INTELIGENTE (v5.0) da pasta '{PASTA_PDFS}' ---")
+    
+    livros_no_db = [
+        'a_cidade_e_as_serras.pdf', 'a_ilustre_casa_de_ramires.pdf', 'a_mao_e_a_luva.pdf',
+        'a_moreninha.pdf', 'a_pata_da_gazela.pdf', 'a_reliquia.pdf', 'a_viuvinha.pdf',
+        'americanas.pdf', 'cinco_minutos.pdf', 'contos_eca_de_queiroz.pdf',
+        'contos_fluminenses.pdf', 'crisalidas.pdf', 'diva.pdf', 'dom_casmurro.pdf',
+        'encarnacao.pdf', 'esau_e_jaco.pdf', 'falenas.pdf', 'helena.pdf',
+        'historias_da_meia_noite.pdf', 'iaia_garcia.pdf', 'iracema.pdf', 'luciola.pdf',
+        'macbeth.pdf', 'memorial_de_aires.pdf', 'memorias_postumas_de_bras_cubas.pdf',
+        'noite_na_taverna.pdf', 'o_alienista.pdf', 'o_cortico.pdf',
+        'o_crime_do_padre_amaro.pdf', 'o_gaucho.pdf', 'o_guarani.pdf', 'o_mandarim.pdf',
+        'o_primo_basilio.pdf', 'o_sertanejo.pdf', 'o_tronco_do_ipe.pdf', 'ocidentais.pdf',
+        'os_maias.pdf', 'paginas_recolhidas.pdf', 'papeis_avulsos.pdf',
+        'poemas_de_fernando_pessoa.pdf', 'quincas_borba.pdf', 'reliquias_de_casa_velha.pdf',
+        'senhora.pdf', 'sonhos_douro.pdf', 'til.pdf', 'varias_historias.pdf'
+    ]
+    
+    pdfs_a_processar = [f for f in os.listdir(PASTA_PDFS) if f.lower() in livros_no_db]
+    print(f"Encontrados {len(pdfs_a_processar)} arquivos PDF (do DB de 46) para processar.")
+
+    sucesso = 0
+    falha = 0
+
+    for nome_arquivo_pdf in pdfs_a_processar:
+        caminho_pdf = os.path.join(PASTA_PDFS, nome_arquivo_pdf)
+        nome_txt = os.path.splitext(nome_arquivo_pdf)[0] + '.txt'
+        caminho_txt = os.path.join(PASTA_CORPUS, nome_txt)
+        
+        if converter_pdf_para_txt_limpo(caminho_pdf, caminho_txt):
+            sucesso += 1
+        else:
+            falha += 1
+
+    print(f"\n--- Conversão inteligente (v5.0) concluída! ---")
+    print(f"Sucesso: {sucesso} / Falha: {falha}")
+
+if __name__ == '__main__':
+    rodar_build_limpo_completo()

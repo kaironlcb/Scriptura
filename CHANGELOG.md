@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] - 2025-11-04
+### Adicionado
+- **Arquitetura de Busca Dupla:** Implementação no `main.py` com dois endpoints distintos:
+    - `/recomendar-por-tema`: Usa média de vetores e agregação de scores para parágrafos descritivos.
+    - `/encontrar-por-trecho`: Busca exata vetorial focada na primeira frase do input.
+- **Processamento Granular:** Nova lógica em `processar_textos.py` que aplica filtros de qualidade (remoção de lixo, veneno e frases muito curtas) antes da vetorização.
+- **Worker Assíncrono:** Criação do `analisador.py` para monitorar o banco de dados e processar livros com status `PENDENTE` em background, sem travar a API.
+- **Conversão Inteligente:** Script `auto_converter.py` com limpeza baseada em Regex ("bisturi") para remover cabeçalhos e numeração de páginas de PDFs.
+- **Auditoria de Integridade:** Script `verificar_indices.py` para garantir a sincronia entre o banco SQLite e os índices `.pkl`.
+
+### Alterado
+- **Engine Generativa:** Migração definitiva de TF-IDF para `SentenceTransformer` (modelo `paraphrase-multilingual-MiniLM-L12-v2`).
+- **Banco de Dados:** Tabela `livros` atualizada para incluir colunas de controle de fluxo (`status`, `caminho_pdf`).
+
+---
+
 ## [0.5.0] - 2025-11-20
 ### Adicionado
 - **Busca por Fatiamento:** Nova lógica no endpoint `/recomendar-por-tema` que isola e utiliza apenas a primeira frase do texto de entrada. Isso foca o vetor semântico na ideia central e reduz o ruído causado por textos longos na busca.
