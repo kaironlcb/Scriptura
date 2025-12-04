@@ -1,0 +1,26 @@
+# --- Python & Ambientes ---
+__pycache__/
+*.pyc
+venv/
+.env
+
+# --- Dados e Bancos (IMPORTANTE) ---
+# Ignora o banco SQLite bruto, conforme solicitado
+*.db
+*.sqlite
+literatura.db
+
+# --- Artefatos de Machine Learning/Indexação ---
+# Ignora os modelos treinados e índices gerados localmente (são binários pesados)
+*.pkl
+vectorizer.pkl
+tfidf_matrix.pkl
+ids_documentos.pkl
+
+# --- IDEs e Editores ---
+.vscode/
+.idea/
+
+# --- Logs e Uploads ---
+logs/
+uploads/
