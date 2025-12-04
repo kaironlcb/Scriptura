@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0] - Administração e Automação
+### Adicionado
+- **Painel Administrativo:** Nova interface web (`admin.html`) protegida por senha básica, permitindo aos gestores:
+    - Listar todas as obras do acervo e visualizar status (`EM_REVISAO` ou `PROCESSADO`).
+    - **CRUD de Livros:** Funcionalidades para Editar metadados, Aprovar uploads de usuários e Excluir obras indesejadas via interface gráfica.
+- **Endpoints de Gestão:** Expansão da API (`main.py`) com rotas exclusivas para administração:
+    - `GET /admin/listar-todos`: Retorna o acervo completo.
+    - `PUT /admin/atualizar-livro/{id}`: Atualiza dados e status da obra.
+    - `DELETE /admin/excluir-livro/{id}`: Remove o registro do banco.
+- **Scripts de Automação (Windows):** Conjunto de arquivos `.bat` para simplificar a operação:
+    - `instalacao.bat`: Realiza o setup completo (venv, pip install, download do spacy) com um clique.
+    - `atualizar_lista.bat`: Re-executa a indexação da IA (`processar_textos` e `processar_temas`) sem apagar o banco de dados.
+    - `recons_cuidado.bat`: Ferramenta de "Hard Reset" que recria o banco e os índices do zero.
+
+### Alterado
+- **Interface Visual:** O arquivo `style.css` foi expandido para incluir estilos de tabelas, modais de edição, badges de status e melhorias no modo escuro para o painel admin.
+- **Segurança (MVP):** Implementação de uma verificação de credencial simples no `admin.js` para restringir o acesso às ferramentas de gestão.
+
+---
+
 ## [1.0.0] - Versão Estável
 ### Lançamento
 - **Release Estável:** Consolidação de todos os módulos (API Híbrida, Processamento Granular, Frontend Web) em uma versão unificada para apresentação do TCC.

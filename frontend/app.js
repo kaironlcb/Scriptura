@@ -225,7 +225,7 @@
         metadataContainer.innerHTML += `<div class="metadata-item"><b>Movimento:</b> ${obra.movimento_literario || 'N/A'}</div>`;
 
         if (obra.url_download) {
-            metadataContainer.innerHTML += `<a href="${API_URL}${obra.url_download}" target="_blank" class="metadata-item download-link">baixe o PDF</a>`;
+            metadataContainer.innerHTML += `<a href="${API_URL}${obra.url_download}" target="_blank" class="metadata-item download-link">Baixe o PDF aqui</a>`;
         }
 
         if (trechos) {

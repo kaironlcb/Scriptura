@@ -84,9 +84,7 @@ if index_TEMA:
     print("Índice BM25 construído com sucesso.")
 
 app = FastAPI(
-    title="Scriptura API (v18.1 - TESTE DE VERIFICACAO)",
-    description="API Híbrida (v16.2) com endpoint de upload e permissões CORS.",
-    version="18.1.0",
+    title="Scriptura"
 )
 
 origins = [
@@ -300,3 +298,63 @@ async def encontrar_por_trecho(item: TextoParaAnalisar):
         return resultados_finais
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=f"Erro no banco de dados: {e}")
+class LivroUpdate(BaseModel):
+    titulo: Optional[str] = None
+    autor: Optional[str] = None
+    ano_lancamento: Optional[int] = None
+    genero: Optional[str] = None
+    movimento_literario: Optional[str] = None
+    status: Optional[str] = None
+
+@app.get("/admin/listar-todos")
+async def listar_todos_livros():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM livros ORDER BY status ASC, titulo ASC")
+        livros = cursor.fetchall()
+        conn.close()
+        return [formatar_livro_saida(livro) for livro in livros]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/admin/excluir-livro/{livro_id}")
+async def excluir_livro(livro_id: int):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT caminho_arquivo, caminho_pdf FROM livros WHERE id = ?", (livro_id,))
+        row = cursor.fetchone()
+        
+        cursor.execute("DELETE FROM livros WHERE id = ?", (livro_id,))
+        conn.commit()
+        conn.close()
+                
+        return {"mensagem": "Livro excluído com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/admin/atualizar-livro/{livro_id}")
+async def atualizar_livro(livro_id: int, dados: LivroUpdate):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        campos_para_atualizar = {k: v for k, v in dados.dict().items() if v is not None}
+        
+        if not campos_para_atualizar:
+            raise HTTPException(status_code=400, detail="Nenhum dado enviado para atualização")
+
+        set_clause = ", ".join([f"{key} = ?" for key in campos_para_atualizar.keys()])
+        valores = list(campos_para_atualizar.values())
+        valores.append(livro_id)
+
+        cursor.execute(f"UPDATE livros SET {set_clause} WHERE id = ?", valores)
+        conn.commit()
+        conn.close()
+        
+        return {"mensagem": "Livro atualizado com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

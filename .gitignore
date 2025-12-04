@@ -5,23 +5,26 @@ venv/
 .env
 .venv
 
-# --- Dados e Bancos ---
+# --- Dados e Bancos (Segurança e Peso) ---
 *.db
 *.sqlite
 literatura.db
 
-# --- Artefatos de Indexação ---
+# --- Artefatos de IA e Indexação (Binários pesados) ---
 *.pkl
 ids_documentos.pkl
 embeddings.pkl
 tfidf_matrix.pkl
 vectorizer.pkl
+# Ignora variações dos índices novos
+*TRECHO.pkl
+*TEMA.pkl
 
 # --- PASTAS DE DADOS BRUTOS ---
 corpus/*
 !corpus/.gitkeep
 
-# --- PDFs e Arquivos Estáticos ---
+# --- PDFs e Arquivos Estáticos Pesados ---
 static/pdfs/*
 static/images/*
 
