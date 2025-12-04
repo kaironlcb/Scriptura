@@ -4,23 +4,28 @@ __pycache__/
 venv/
 .env
 
-# --- Dados e Bancos (IMPORTANTE) ---
-# Ignora o banco SQLite bruto, conforme solicitado
+# --- Dados e Bancos ---
 *.db
 *.sqlite
 literatura.db
 
-# --- Artefatos de Machine Learning/Indexação ---
-# Ignora os modelos treinados e índices gerados localmente (são binários pesados)
+# --- Artefatos de Indexação (Binários pesados) ---
 *.pkl
-vectorizer.pkl
-tfidf_matrix.pkl
 ids_documentos.pkl
+tfidf_matrix.pkl
+vectorizer.pkl
 
-# --- IDEs e Editores ---
-.vscode/
-.idea/
+# --- PASTAS DE DADOS BRUTOS (O Pulo do Gato) ---
+# Ignora tudo dentro da pasta corpus (os 88 livros em txt)
+corpus/*
+
+# Ignora tudo dentro da pasta de pdfs
+static/pdfs/*
 
 # --- Logs e Uploads ---
 logs/
 uploads/
+
+# --- IDEs ---
+.vscode/
+.idea/

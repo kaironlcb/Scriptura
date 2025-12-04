@@ -1,0 +1,5 @@
+cd "C:\Users\iverz\OneDrive\Área de Trabalho\Facul\tcc"
+
+.\venv\Scripts\Activate
+
+uvicorn main:app --reload
