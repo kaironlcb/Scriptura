@@ -1,4 +1,4 @@
-# processar_textos.py (v3.11 - "Filtro Light")
+# processar_textos.py (v7.0 - "Granular" - A Solução do Zé)
 import sqlite3
 import joblib
 import numpy as np
@@ -9,28 +9,33 @@ import string
 import math
 
 DB_PATH = 'literatura.db'
-CHUNK_SIZE = 3
-CHUNK_OVERLAP = 2
-STEP_SIZE = CHUNK_SIZE - CHUNK_OVERLAP
 
-# --- JUNK KEYWORDS (v3.11 - "FILTRO LIGHT" E SEGURO) ---
-# Vamos focar SÓ no lixo óbvio de URL/PDF
+# --- A "LISTA NEGRA" (FILTRO SANITÁRIO) ---
+# Usamos ela para *identificar* um chunk poluído
 JUNK_KEYWORDS = [
+    '(cid:', # O "veneno" que trava o modelo
     'www.', 'http:', 'https:', '.br', '.com', '.org', '.pdf',
     'bibvirt', 'ciberfil', 'hpg.ig.com.br', 'nead', 'unama',
-    'adobe acrobat', 'e-mail:', 'email:', 'digitalizado por:'
+    'adobe acrobat', 'e-mail:', 'email:', 'digitalizado por:',
+    'isbn:', 'cep:', 'alcindo cacela', 'série bom livro', 'usp.br',
+    'ministério da cultura', 'biblioteca nacional', 'departamento nacional do livro'
 ]
-# --- FIM DA LISTA ---
+
+# --- O "EXTERMINADOR" (v6.1) ---
+RE_CONTROLE_INVISIVEL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 MANUAL_BATCH_SIZE = 512
-MAX_CHUNK_LENGTH = 10000
+MAX_CHUNK_LENGTH = 10000 # Filtro de veneno (chunks gigantes)
+MIN_CHUNK_LENGTH = 10     # NOVO: Descarta frases inúteis (ex: "Sim.")
 
 def processar_e_salvar_chunks_semanticos():
     """
-    Versão 3.11: "Filtro Light". Usa uma lista de lixo
-    mínima e segura para NÃO descartar chunks bons por acidente.
+    Versão 7.0: O "Granular" (A Solução do Zé).
+    Usa CHUNK_SIZE = 1 (cada frase é um documento).
+    Remove toda a lógica de "Bisturi" (MARCADORES_INICIO)
+    e confia 100% no "Filtro Sanitário" (JUNK_KEYWORDS).
     """
-    print("--- Iniciando processamento semântico v3.11 (Filtro Light) ---")
+    print("--- Iniciando processamento semântico v7.0 (Granular) ---")
 
     # 1. Carregar os Modelos
     print("Carregando modelo spaCy (pt_core_news_lg)...")
@@ -62,18 +67,17 @@ def processar_e_salvar_chunks_semanticos():
 
     chunks_de_texto_puro = []
     ids_dos_chunks_puros = []
-    whitespace_chars = string.whitespace + '\x0c' 
     chunks_descartados_lixo = 0
     chunks_descartados_veneno = 0
+    chunks_descartados_curtos = 0
 
     print(f"\nIniciando fatiamento e filtragem de {len(livros)} obras...")
 
-    # 3. Fatiar e Filtrar...
+    # 3. Fatiar e Filtrar/Limpar...
     for livro_id, caminho_arquivo, titulo in livros:
         print(f"  Processando: {titulo} (ID: {livro_id})")
         texto_original = ""
         try:
-            # Lógica do "Tradutor" (v3.10) - importante manter
             try:
                 with open(caminho_arquivo, 'r', encoding='utf-8') as f:
                     texto_original = f.read()
@@ -81,33 +85,44 @@ def processar_e_salvar_chunks_semanticos():
                 print(f"    AVISO: Falha no UTF-8 (byte 0xc3?). Tentando como 'latin-1'...")
                 with open(caminho_arquivo, 'r', encoding='latin-1') as f:
                     texto_original = f.read()
+            
+            # --- O "EXTERMINADOR" v6.1 ---
+            texto_limpo = RE_CONTROLE_INVISIVEL.sub('', texto_original)
+            
+            # --- LÓGICA DO BISTURI (MARCADORES_INICIO) REMOVIDA ---
 
-            texto_limpo = texto_original.lstrip(whitespace_chars)
+            texto_limpo = texto_limpo.lstrip(string.whitespace + '\x0c')
             texto_limpo = re.sub(r'(\n|\s){2,}', ' \n', texto_limpo)
             
             doc_spacy = nlp(texto_limpo)
+            
+            # --- CHUNK_SIZE = 1 (A SOLUÇÃO DO ZÉ) ---
             frases = [s.text.strip() for s in doc_spacy.sents if s.text.strip()]
             
-            if len(frases) < CHUNK_SIZE:
+            if not frases:
                 print(f"    Aviso: Livro '{titulo}' é muito curto, pulando.")
                 continue
 
-            for i in range(0, len(frases) - CHUNK_SIZE + 1, STEP_SIZE):
-                chunk_frases = frases[i : i + CHUNK_SIZE]
-                chunk_texto = " ".join(chunk_frases)
+            for chunk_texto_original in frases:
+                # Agora, "chunk_texto_original" é SÓ 1 FRASE
                 
-                if len(chunk_texto) > MAX_CHUNK_LENGTH:
+                if len(chunk_texto_original) > MAX_CHUNK_LENGTH:
                     chunks_descartados_veneno += 1
                     continue
+                    
+                if len(chunk_texto_original) < MIN_CHUNK_LENGTH:
+                    chunks_descartados_curtos += 1
+                    continue
 
-                chunk_texto_lower = chunk_texto.lower()
+                chunk_texto_lower = chunk_texto_original.lower()
                 is_junk = any(keyword.lower() in chunk_texto_lower for keyword in JUNK_KEYWORDS)
                 
                 if is_junk:
                     chunks_descartados_lixo += 1
                 else:
-                    chunks_de_texto_puro.append(chunk_texto)
+                    chunks_de_texto_puro.append(chunk_texto_original)
                     ids_dos_chunks_puros.append(livro_id)
+            # --- FIM DA LÓGICA v7.0 ---
 
         except FileNotFoundError:
             print(f"    AVISO: Arquivo '{caminho_arquivo}' não foi encontrado. Pulando.")
@@ -119,9 +134,10 @@ def processar_e_salvar_chunks_semanticos():
         return
 
     print(f"\nFiltro concluído:")
-    print(f"  {len(chunks_de_texto_puro)} chunks puros retidos.")
+    print(f"  {len(chunks_de_texto_puro)} chunks puros retidos (frases).")
     print(f"  {chunks_descartados_lixo} chunks de lixo (lista negra) descartados.")
     print(f"  {chunks_descartados_veneno} chunks venenosos (muito longos) descartados.")
+    print(f"  {chunks_descartados_curtos} chunks curtos (ex: 'Sim.') descartados.")
     
     # 4. Gerar os Embeddings (COM BATCH MANUAL)
     print("\nGerando os vetores semânticos (Embeddings) em lotes controlados...")
@@ -153,7 +169,7 @@ def processar_e_salvar_chunks_semanticos():
     joblib.dump(embeddings, 'embeddings.pkl')
     joblib.dump(np.array(ids_dos_chunks_puros), 'ids_documentos.pkl')
     
-    print("\n--- Processamento (v3.11) concluído! ---")
+    print("\n--- Processamento (v7.0) concluído! ---")
 
 if __name__ == '__main__':
     processar_e_salvar_chunks_semanticos()
