@@ -1,0 +1,12 @@
+Caso seja a primeira vez usando, abra o CMD e utilize esses comandos:
+cd "diretorio desses arquivos"
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+~ ~ No navegador ~ ~
+http://127.0.0.1:8000/docs
+
+
+Após a primeira utilização, não é mais necessário utilizar o pip install -r requirements.txt
+(Talvez seja necessário rodar o comando python processar_textos.py, mas raramente é necessário!)

@@ -6,3 +6,4 @@ spacy
 scikit-learn
 joblib
 pdfplumber
+sentence-transformers

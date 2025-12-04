@@ -22,7 +22,7 @@ else:
     arquivos_na_pasta = os.listdir(PASTA_PDFS)
     pdfs_encontrados = [arquivo for arquivo in arquivos_na_pasta if arquivo.lower().endswith('.pdf')]
     
-    print(f"Encontrados {len(pdfs_encontrados)} arquivos PDF para processar.")
+    print(f"Encontrados {len(pdfs_encontrados)} arquivos PDF para converter.")
 
     for nome_arquivo_pdf in pdfs_encontrados:
         caminho_pdf_completo = os.path.join(PASTA_PDFS, nome_arquivo_pdf)
@@ -31,7 +31,7 @@ else:
         nome_arquivo_txt = os.path.splitext(nome_arquivo_pdf)[0] + '.txt'
         caminho_txt_completo = os.path.join(PASTA_CORPUS, nome_arquivo_txt)
         
-        print(f"\n[PROCESSANDO]: {nome_arquivo_pdf}")
+        print(f"\n[CONVERTENDO]: {nome_arquivo_pdf}")
         
         texto_completo = ""
         try:
@@ -52,7 +52,7 @@ else:
         
         except Exception as e:
             # Captura e informa erros que possam ocorrer (ex: PDF corrompido)
-            print(f"  [ERRO] -> Não foi possível processar o arquivo {nome_arquivo_pdf}.")
+            print(f"  [ERRO] -> Não foi possível converter o arquivo {nome_arquivo_pdf}.")
             print(f"          Motivo: {e}")
 
-    print("\n--- Conversão concluída! ---")
+    print("\n--- Conversões concluídas! ---")

@@ -3,29 +3,35 @@ __pycache__/
 *.pyc
 venv/
 .env
+.venv
 
-# --- Dados e Bancos ---
+# --- Dados e Bancos (Segurança e Peso) ---
 *.db
 *.sqlite
 literatura.db
 
-# --- Artefatos de Indexação (Binários pesados) ---
+# --- Artefatos de IA e Indexação (Binários pesados) ---
 *.pkl
 ids_documentos.pkl
+embeddings.pkl
 tfidf_matrix.pkl
 vectorizer.pkl
 
-# --- PASTAS DE DADOS BRUTOS (O Pulo do Gato) ---
-# Ignora tudo dentro da pasta corpus (os 88 livros em txt)
+# --- PASTAS DE DADOS BRUTOS ---
+# Ignora conteúdo, mas mantém a pasta (usando .gitkeep se precisar)
 corpus/*
+!corpus/.gitkeep
 
-# Ignora tudo dentro da pasta de pdfs
+# --- PDFs e Arquivos Estáticos Pesados ---
+# CUIDADO: Não ignore CSS ou JS se estiverem em static
 static/pdfs/*
+static/images/*
 
-# --- Logs e Uploads ---
+# --- Logs e Sistema ---
 logs/
 uploads/
+.DS_Store
+Thumbs.db
 
-# --- IDEs ---
-.vscode/
-.idea/
+# --- Lixo / Temporários ---
+[140
